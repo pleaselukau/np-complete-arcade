@@ -1,3 +1,4 @@
+import { getGameCompletedCount } from "@/engine/storage/progressSummary";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
@@ -25,14 +26,31 @@ export default function HomePage() {
         </header>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {GAMES.map((g) => (
-            <Link key={g.id} to={`/game/${g.id}`}>
-              <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 hover:bg-slate-800 transition">
-                <div className="text-lg font-semibold">{g.title}</div>
-                <div className="mt-2 text-sm text-slate-300">Play →</div>
-              </div>
-            </Link>
-          ))}
+          {GAMES.map((g) => {
+            const completedCount = getGameCompletedCount(g.id);
+
+            return (
+              <Link key={g.id} to={`/game/${g.id}`}>
+                <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 hover:bg-slate-800 transition">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="text-lg font-semibold">{g.title}</div>
+                    {completedCount > 0 ? (
+                      <div className="text-xs rounded-full bg-emerald-500/15 text-emerald-200 border border-emerald-500/30 px-2 py-1">
+                        Completed: {completedCount}
+                      </div>
+                    ) : (
+                      <div className="text-xs rounded-full bg-slate-800 text-slate-300 border border-slate-700 px-2 py-1">
+                        Not started
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-2 text-sm text-slate-300">Play →</div>
+                </div>
+              </Link>
+            );
+          })}
+
         </div>
 
         <div className="mt-10">
