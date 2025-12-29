@@ -1,0 +1,22 @@
+{
+  "id": "coloring-01",
+  "gameId": "coloring",
+  "level": 1,
+  "title": "Two Triangles",
+  "difficulty": "easy",
+  "objective": "Color the graph with at most 3 colors.",
+  "hint": "Try coloring adjacent nodes different colors.",
+  "payload": {
+    "nodes": ["A", "B", "C", "D", "E", "F"],
+    "edges": [
+      ["A", "B"],
+      ["B", "C"],
+      ["C", "A"],
+      ["D", "E"],
+      ["E", "F"],
+      ["F", "D"],
+      ["C", "D"]
+    ],
+    "maxColors": 3
+  }
+}
