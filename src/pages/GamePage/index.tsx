@@ -1,32 +1,68 @@
-import { Link, useParams } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
+import GameShell from "@/components/GameShell";
+import PixiStage from "@/components/PixiStage";
 import { Button } from "@/components/ui/button";
+import { InlineMath } from "react-katex";
+import "katex/dist/katex.min.css";
 
 export default function GamePage() {
   const { id } = useParams();
+  const gameId = id ?? "unknown";
+
+  const [explainMode, setExplainMode] = useState(true);
+
+  const title = useMemo(() => `Game: ${gameId}`, [gameId]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <div className="mx-auto max-w-5xl px-6 py-10">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Game: {id}</h1>
-            <p className="mt-1 text-slate-300">
-              Phase 0 placeholder — GameShell + Pixi canvas coming next.
-            </p>
-          </div>
-
-          <Button asChild variant="secondary">
-            <Link to="/">← Back</Link>
+    <GameShell
+      title={title}
+      controls={
+        <>
+          <Button variant="secondary" onClick={() => alert("Reset (Phase 0 placeholder)")}>
+            Reset
           </Button>
-        </div>
+          <Button variant="secondary" onClick={() => alert("Hint (Phase 0 placeholder)")}>
+            Hint
+          </Button>
+          <Button onClick={() => alert("Level selector (Phase 0 placeholder)")}>Level 1</Button>
+        </>
+      }
+      rightPanel={
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="font-semibold">Explain mode</div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setExplainMode((v) => !v)}
+            >
+              {explainMode ? "On" : "Off"}
+            </Button>
+          </div>
 
-        <div className="mt-8 rounded-2xl border border-slate-800 bg-slate-900 p-6">
-          <div className="text-slate-300">Canvas area placeholder</div>
-          <div className="mt-4 h-64 rounded-xl border border-dashed border-slate-700 grid place-items-center">
-            <span className="text-slate-400">PixiStage will render here</span>
+          {explainMode ? (
+            <div className="text-sm text-slate-300 space-y-3">
+              <p>
+                Phase 0 placeholder explanation panel. Later this will explain why{" "}
+                <span className="text-slate-200">{gameId}</span> is NP-complete and the
+                intuition behind constraints.
+              </p>
+              <p>
+                KaTeX check: <InlineMath math={"P \\neq NP"} />
+              </p>
+            </div>
+          ) : (
+            <div className="text-sm text-slate-400">Explain mode is off.</div>
+          )}
+
+          <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 text-sm">
+            Win/Fail feedback placeholder
           </div>
         </div>
-      </div>
-    </div>
+      }
+    >
+      <PixiStage />
+    </GameShell>
   );
 }
