@@ -1,66 +1,142 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as PIXI from "pixi.js";
 
-type PixiStageProps = {
-  width?: number;
-  height?: number;
+type PixiReadyPayload = {
+  app: PIXI.Application;
+  world: PIXI.Container;
+  ui: PIXI.Container;
+  size: { width: number; height: number };
+  dpr: number;
 };
 
-export default function PixiStage({ width = 900, height = 520 }: PixiStageProps) {
+type PixiResizePayload = {
+  width: number;
+  height: number;
+  dpr: number;
+};
+
+type PixiStageProps = {
+  className?: string;
+  maxDpr?: number; // cap DPR to avoid GPU pain on 4k
+  onAppReady?: (payload: PixiReadyPayload) => void;
+  onResize?: (payload: PixiResizePayload) => void;
+};
+
+export default function PixiStage({
+  className,
+  maxDpr = 2,
+  onAppReady,
+  onResize,
+}: PixiStageProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+
   const appRef = useRef<PIXI.Application | null>(null);
+  const worldRef = useRef<PIXI.Container | null>(null);
+  const uiRef = useRef<PIXI.Container | null>(null);
+
+  const roRef = useRef<ResizeObserver | null>(null);
+
+  const initialDpr = useMemo(() => {
+    const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+    return Math.min(Math.max(dpr, 1), maxDpr);
+  }, [maxDpr]);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Create Pixi app once
+    const containerEl = containerRef.current;
+
     const app = new PIXI.Application();
     appRef.current = app;
 
+    const world = new PIXI.Container();
+    const ui = new PIXI.Container();
+    worldRef.current = world;
+    uiRef.current = ui;
+
     let destroyed = false;
 
-    (async () => {
-      await app.init({
-        width,
-        height,
-        background: "#0b1220",
-        antialias: true,
-      });
+    const resizeToElement = async () => {
+      if (!containerEl || !appRef.current) return;
 
-      if (destroyed) return;
+      const rect = containerEl.getBoundingClientRect();
+      const width = Math.max(1, Math.floor(rect.width));
+      const height = Math.max(1, Math.floor(rect.height));
+      const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1), maxDpr);
 
-      containerRef.current!.appendChild(app.canvas);
+      // If app not initialized yet, init it now.
+      if (!(appRef.current as any)._initialized) {
+        await appRef.current.init({
+          width,
+          height,
+          resolution: dpr,
+          autoDensity: true,
+          background: "#0b1220",
+          antialias: true,
+        });
 
-      // Placeholder content (Phase 0)
-      const g = new PIXI.Graphics();
-      g.roundRect(40, 40, width - 80, height - 80, 18);
-      g.stroke({ width: 2, color: 0x334155 });
-      g.fill({ color: 0x0f172a, alpha: 0.7 });
-      app.stage.addChild(g);
+        if (destroyed) return;
 
-      const text = new PIXI.Text({
-        text: "PixiStage ✅ (Phase 0 placeholder)",
-        style: new PIXI.TextStyle({
-          fill: 0xe2e8f0,
-          fontSize: 20,
-          fontFamily: "Arial",
-        }),
-      });
-      text.x = 70;
-      text.y = 70;
-      app.stage.addChild(text);
-    })();
+        containerEl.appendChild(appRef.current.canvas);
+
+        // Order: world below, ui above
+        appRef.current.stage.addChild(world);
+        appRef.current.stage.addChild(ui);
+
+        onAppReady?.({
+          app: appRef.current,
+          world,
+          ui,
+          size: { width, height },
+          dpr,
+        });
+      } else {
+        appRef.current.renderer.resize(width, height);
+        appRef.current.renderer.resolution = dpr;
+        appRef.current.renderer.view.style.width = "100%";
+        appRef.current.renderer.view.style.height = "100%";
+
+        onResize?.({ width, height, dpr });
+      }
+    };
+
+    // Initialize now
+    resizeToElement();
+
+    // Resize observer
+    roRef.current = new ResizeObserver(() => {
+      resizeToElement();
+    });
+    roRef.current.observe(containerEl);
 
     return () => {
       destroyed = true;
+      try {
+        roRef.current?.disconnect();
+      } catch {
+        // ignore
+      }
+      roRef.current = null;
+
       try {
         appRef.current?.destroy(true);
       } catch {
         // ignore
       }
-      appRef.current = null;
-    };
-  }, [width, height]);
 
-  return <div ref={containerRef} className="w-full overflow-hidden rounded-2xl border border-slate-800" />;
+      appRef.current = null;
+      worldRef.current = null;
+      uiRef.current = null;
+    };
+  }, [maxDpr, onAppReady, onResize]);
+
+  return (
+    <div
+      ref={containerRef}
+      className={
+        className ??
+        "w-full h-[520px] overflow-hidden rounded-2xl border border-slate-800"
+      }
+    />
+  );
 }

@@ -1,3 +1,4 @@
+import * as PIXI from "pixi.js";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import GameShell from "@/components/GameShell";
@@ -133,7 +134,26 @@ export default function GamePage() {
         </div>
       }
     >
-      <PixiStage />
+      <PixiStage
+        onAppReady={({ world, ui }) => {
+          const txt = new PIXI.Text({
+            text: "Pixi host ready ✅",
+            style: { fill: 0xe2e8f0, fontSize: 18, fontFamily: "Arial" },
+          });
+          txt.x = 16;
+          txt.y = 12;
+          ui.addChild(txt);
+
+          const g = new PIXI.Graphics();
+          g.circle(0, 0, 10);
+          g.fill(0x22c55e);
+          g.x = 80;
+          g.y = 90;
+          world.addChild(g);
+        }}
+      />
+
+
     </GameShell>
   );
 }
