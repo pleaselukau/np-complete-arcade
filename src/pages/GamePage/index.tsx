@@ -1,3 +1,5 @@
+import EngineProvider from "@/engine/core/EngineProvider";
+import { useEngine } from "@/engine/core/EngineProvider";
 import * as PIXI from "pixi.js";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
@@ -9,6 +11,24 @@ import "katex/dist/katex.min.css";
 import { getLevelList, loadLevel } from "@/engine/storage/levelLoader";
 import type { BaseLevel } from "@/engine/validation/levelSchemas";
 import { getBestScore, isLevelComplete, markLevelComplete } from "@/engine/storage/progress";
+
+function GameControls() {
+  const { dispatch } = useEngine();
+  return (
+    <>
+      <Button variant="secondary" onClick={() => dispatch({ type: "RESET" })}>
+        Reset
+      </Button>
+      <Button variant="secondary" onClick={() => dispatch({ type: "HINT" })}>
+        Hint
+      </Button>
+      <Button variant="secondary" onClick={() => dispatch({ type: "MARK_COMPLETE" })}>
+        Mark Complete
+      </Button>
+    </>
+  );
+}
+
 
 export default function GamePage() {
   const { id } = useParams();
@@ -51,109 +71,68 @@ export default function GamePage() {
   const bestScore = getBestScore(gameId, levelNum);
 
   return (
-    <GameShell
-      title={title}
-      controls={
-        <>
-          <Button variant="secondary" onClick={() => alert("Reset (Phase 0 placeholder)")}>
-            Reset
-          </Button>
-
-          <Button
-            variant="secondary"
-            onClick={() => alert(level?.hint ?? "No hint available.")}
-            disabled={!level}
-          >
-            Hint
-          </Button>
-
-          <Button
-            variant="secondary"
-            onClick={() => {
-              // Phase 0 "win" is a manual button click.
-              const fakeScore = 100;
-              markLevelComplete(gameId, levelNum, fakeScore);
-              alert("Saved: level completed ✅");
-            }}
-            disabled={!level}
-          >
-            Mark Complete
-          </Button>
-
-          <Button
-            onClick={() => {
-              const idx = levels.indexOf(levelNum);
-              const next = levels[(idx + 1) % levels.length] ?? levelNum;
-              setLevelNum(next);
-            }}
-            disabled={levels.length === 0}
-          >
-            Level {levelNum}
-          </Button>
-
-          <div className="ml-2 text-sm text-slate-300">
-            {completed ? "Completed ✅" : "Not completed"}
-            {bestScore !== null ? ` • Best: ${bestScore}` : ""}
-          </div>
-        </>
-      }
-      rightPanel={
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="font-semibold">Explain mode</div>
-            <Button variant="secondary" size="sm" onClick={() => setExplainMode((v) => !v)}>
-              {explainMode ? "On" : "Off"}
-            </Button>
-          </div>
-
-          {explainMode ? (
-            <div className="text-sm text-slate-300 space-y-3">
-              <p className="text-slate-200 font-medium">
-                {level ? level.title : "Loading level..."}
-              </p>
-              <p>{level ? level.objective : "—"}</p>
-              <p>
-                KaTeX check: <InlineMath math={"P \\neq NP"} />
-              </p>
+    <EngineProvider gameId={gameId} levelNum={levelNum} level={level}>
+      <GameShell
+        title={title}
+        controls={<GameControls />}
+        rightPanel={
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="font-semibold">Explain mode</div>
+              <Button variant="secondary" size="sm" onClick={() => setExplainMode((v) => !v)}>
+                {explainMode ? "On" : "Off"}
+              </Button>
             </div>
-          ) : (
-            <div className="text-sm text-slate-400">Explain mode is off.</div>
-          )}
 
-          <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 text-sm">
-            {error ? (
-              <div className="text-red-300">Error loading level: {error}</div>
-            ) : level ? (
-              <div className="text-slate-300">
-                Loaded JSON: <span className="text-slate-200">{level.id}</span>
+            {explainMode ? (
+              <div className="text-sm text-slate-300 space-y-3">
+                <p className="text-slate-200 font-medium">
+                  {level ? level.title : "Loading level..."}
+                </p>
+                <p>{level ? level.objective : "—"}</p>
+                <p>
+                  KaTeX check: <InlineMath math={"P \\neq NP"} />
+                </p>
               </div>
             ) : (
-              <div className="text-slate-400">Loading…</div>
+              <div className="text-sm text-slate-400">Explain mode is off.</div>
             )}
+
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 text-sm">
+              {error ? (
+                <div className="text-red-300">Error loading level: {error}</div>
+              ) : level ? (
+                <div className="text-slate-300">
+                  Loaded JSON: <span className="text-slate-200">{level.id}</span>
+                </div>
+              ) : (
+                <div className="text-slate-400">Loading…</div>
+              )}
+            </div>
           </div>
-        </div>
-      }
-    >
-      <PixiStage
-        onAppReady={({ world, ui }) => {
-          const txt = new PIXI.Text({
-            text: "Pixi host ready ✅",
-            style: { fill: 0xe2e8f0, fontSize: 18, fontFamily: "Arial" },
-          });
-          txt.x = 16;
-          txt.y = 12;
-          ui.addChild(txt);
+        }
+      >
+        <PixiStage
+          onAppReady={({ world, ui }) => {
+            const txt = new PIXI.Text({
+              text: "Pixi host ready ✅",
+              style: { fill: 0xe2e8f0, fontSize: 18, fontFamily: "Arial" },
+            });
+            txt.x = 16;
+            txt.y = 12;
+            ui.addChild(txt);
 
-          const g = new PIXI.Graphics();
-          g.circle(0, 0, 10);
-          g.fill(0x22c55e);
-          g.x = 80;
-          g.y = 90;
-          world.addChild(g);
-        }}
-      />
+            const g = new PIXI.Graphics();
+            g.circle(0, 0, 10);
+            g.fill(0x22c55e);
+            g.x = 80;
+            g.y = 90;
+            world.addChild(g);
+          }}
+        />
 
 
-    </GameShell>
+      </GameShell>
+    </EngineProvider>
   );
 }
