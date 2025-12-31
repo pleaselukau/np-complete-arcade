@@ -30,6 +30,16 @@ export default function PixiStage({
 }: PixiStageProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
+  // --- callback refs (avoid Pixi teardown on callback identity changes) ---
+  const onAppReadyRef = useRef(onAppReady);
+  const onResizeRef = useRef(onResize);
+
+  useEffect(() => {
+    onAppReadyRef.current = onAppReady;
+    onResizeRef.current = onResize;
+  }, [onAppReady, onResize]);
+  // ----------------------------------------------------------------------
+
   const appRef = useRef<PIXI.Application | null>(null);
   const worldRef = useRef<PIXI.Container | null>(null);
   const uiRef = useRef<PIXI.Container | null>(null);
@@ -78,12 +88,19 @@ export default function PixiStage({
         if (destroyed) return;
 
         containerEl.appendChild(appRef.current.canvas);
+        const canvas = appRef.current.canvas;
+        // Make canvas not affect layout (prevents ResizeObserver loop)
+        canvas.style.position = "absolute";
+        canvas.style.inset = "0";
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
+        canvas.style.display = "block";
 
         // Order: world below, ui above
         appRef.current.stage.addChild(world);
         appRef.current.stage.addChild(ui);
 
-        onAppReady?.({
+        onAppReadyRef.current?.({
           app: appRef.current,
           world,
           ui,
@@ -93,10 +110,8 @@ export default function PixiStage({
       } else {
         appRef.current.renderer.resize(width, height);
         appRef.current.renderer.resolution = dpr;
-        appRef.current.renderer.view.style.width = "100%";
-        appRef.current.renderer.view.style.height = "100%";
 
-        onResize?.({ width, height, dpr });
+        onResizeRef.current?.({ width, height, dpr });
       }
     };
 
@@ -128,14 +143,14 @@ export default function PixiStage({
       worldRef.current = null;
       uiRef.current = null;
     };
-  }, [maxDpr, onAppReady, onResize]);
+  }, [maxDpr]); // NOTE: intentionally NOT depending on callback identities
 
   return (
     <div
       ref={containerRef}
       className={
         className ??
-        "w-full h-[520px] overflow-hidden rounded-2xl border border-slate-800"
+        "relative w-full h-[520px] overflow-hidden rounded-2xl border border-slate-800"
       }
     />
   );

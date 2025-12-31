@@ -21,5 +21,8 @@ export type EngineContextValue = {
     levelNum: number;
     data: BaseLevel | null;
   };
+  
   dispatch: (action: EngineAction) => void;
+  bindPixi: (payload: { app: PIXI.Application; world: PIXI.Container; ui: PIXI.Container }) => void;
+
 };

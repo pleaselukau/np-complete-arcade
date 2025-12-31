@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type * as PIXI from "pixi.js";
 import type { BaseLevel } from "@/engine/validation/levelSchemas";
 import type { EngineAction, EngineContextValue } from "@/engine/core/types";
@@ -19,59 +19,45 @@ type EngineProviderProps = {
 };
 
 export default function EngineProvider({ gameId, levelNum, level, children }: EngineProviderProps) {
-  const appRef = useRef<PIXI.Application | null>(null);
-  const worldRef = useRef<PIXI.Container | null>(null);
-  const uiRef = useRef<PIXI.Container | null>(null);
+  const [app, setApp] = useState<PIXI.Application | null>(null);
+  const [world, setWorld] = useState<PIXI.Container | null>(null);
+  const [ui, setUi] = useState<PIXI.Container | null>(null);
 
-  // We store a stable transform seam for future pan/zoom.
-  // For now, identity.
+  // stable transform seam for future pan/zoom
   const [worldTransform] = useState({ x: 0, y: 0, scale: 1 });
 
+  const bindPixi = useCallback(
+    (payload: { app: PIXI.Application; world: PIXI.Container; ui: PIXI.Container }) => {
+      setApp(payload.app);
+      setWorld(payload.world);
+      setUi(payload.ui);
+    },
+    []
+  );
+
+  const dispatch = useCallback((action: EngineAction) => {
+    // eslint-disable-next-line no-console
+    console.log("[engine dispatch]", action);
+  }, []);
+
   const value = useMemo<EngineContextValue>(() => {
-    const screenToWorld = (p: { x: number; y: number }) => {
-      return {
-        x: (p.x - worldTransform.x) / worldTransform.scale,
-        y: (p.y - worldTransform.y) / worldTransform.scale,
-      };
-    };
+    const screenToWorld = (p: { x: number; y: number }) => ({
+      x: (p.x - worldTransform.x) / worldTransform.scale,
+      y: (p.y - worldTransform.y) / worldTransform.scale,
+    });
 
-    const worldToScreen = (p: { x: number; y: number }) => {
-      return {
-        x: p.x * worldTransform.scale + worldTransform.x,
-        y: p.y * worldTransform.scale + worldTransform.y,
-      };
-    };
-
-    const dispatch = (action: EngineAction) => {
-      // Phase 1 Task 2: seam only.
-      // Next tasks will route to game module onAction + validate.
-      // Keep this centralized.
-      // eslint-disable-next-line no-console
-      console.log("[engine dispatch]", action);
-    };
+    const worldToScreen = (p: { x: number; y: number }) => ({
+      x: p.x * worldTransform.scale + worldTransform.x,
+      y: p.y * worldTransform.scale + worldTransform.y,
+    });
 
     return {
-      pixi: {
-        app: appRef.current,
-        world: worldRef.current,
-        ui: uiRef.current,
-        screenToWorld,
-        worldToScreen,
-      },
+      pixi: { app, world, ui, screenToWorld, worldToScreen },
       level: { gameId, levelNum, data: level },
       dispatch,
+      bindPixi,
     };
-  }, [gameId, levelNum, level, worldTransform]);
+  }, [app, world, ui, gameId, levelNum, level, worldTransform, dispatch, bindPixi]);
 
   return <EngineContext.Provider value={value}>{children}</EngineContext.Provider>;
-}
-
-// Helpers to connect PixiStage → EngineProvider
-export function bindPixiToEngine(payload: {
-  app: any;
-  world: any;
-  ui: any;
-  setApp: (app: any) => void;
-}) {
-  
 }

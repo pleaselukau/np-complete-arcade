@@ -1,6 +1,6 @@
 import EngineProvider from "@/engine/core/EngineProvider";
 import { useEngine } from "@/engine/core/EngineProvider";
-import * as PIXI from "pixi.js";
+import { attachPointerDebug } from "@/engine/input/pointer";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import GameShell from "@/components/GameShell";
@@ -28,6 +28,21 @@ function GameControls() {
     </>
   );
 }
+function BoundStage() {
+  const { bindPixi } = useEngine();
+
+  return (
+    <PixiStage
+      onAppReady={({ app, world, ui }) => {
+        bindPixi({ app, world, ui });
+        const detach = attachPointerDebug(app, (p) => {
+          console.log("pointer click (screen):", p);
+        });
+      }}
+    />
+  );
+}
+
 
 
 export default function GamePage() {
@@ -112,24 +127,7 @@ export default function GamePage() {
           </div>
         }
       >
-        <PixiStage
-          onAppReady={({ world, ui }) => {
-            const txt = new PIXI.Text({
-              text: "Pixi host ready ✅",
-              style: { fill: 0xe2e8f0, fontSize: 18, fontFamily: "Arial" },
-            });
-            txt.x = 16;
-            txt.y = 12;
-            ui.addChild(txt);
-
-            const g = new PIXI.Graphics();
-            g.circle(0, 0, 10);
-            g.fill(0x22c55e);
-            g.x = 80;
-            g.y = 90;
-            world.addChild(g);
-          }}
-        />
+        <BoundStage />
 
 
       </GameShell>
