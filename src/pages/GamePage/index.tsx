@@ -1,3 +1,7 @@
+import * as PIXI from "pixi.js";
+import { buildGraphFromList } from "@/engine/graph/utils";
+import { runForceLayout } from "@/engine/graph/layout";
+import { renderGraph } from "@/engine/graph/render";
 import EngineProvider from "@/engine/core/EngineProvider";
 import { useEngine } from "@/engine/core/EngineProvider";
 import { attachPointerDebug } from "@/engine/input/pointer";
@@ -29,15 +33,40 @@ function GameControls() {
   );
 }
 function BoundStage() {
-  const { bindPixi } = useEngine();
+  const { bindPixi, level } = useEngine();
 
   return (
     <PixiStage
-      onAppReady={({ app, world, ui }) => {
+      onAppReady={({ app, world, ui, size }) => {
         bindPixi({ app, world, ui });
-        const detach = attachPointerDebug(app, (p) => {
-          console.log("pointer click (screen):", p);
+
+        // Clear world to avoid stacking renders
+        world.removeChildren();
+
+        // HUD text
+        const txt = new PIXI.Text({
+          text: "Graph renderer ✅ (Phase 1 Task 4)",
+          style: { fill: 0xe2e8f0, fontSize: 16, fontFamily: "Arial" },
         });
+        txt.x = 14;
+        txt.y = 10;
+        ui.addChild(txt);
+
+        // Only render if this level has the graph-like payload
+        const payload: any = level?.data?.payload;
+        if (!payload?.nodes || !payload?.edges) return;
+
+        const g0 = buildGraphFromList({
+          nodes: payload.nodes,
+          edges: payload.edges,
+        });
+
+        const laidOut = runForceLayout(g0, {
+          width: size.width,
+          height: size.height,
+        });
+
+        renderGraph(world, laidOut);
       }}
     />
   );
