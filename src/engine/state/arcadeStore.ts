@@ -16,6 +16,12 @@ type ArcadeState = {
 
   setSelectedNodeId: (id: string | null) => void;
   setHoveredNodeId: (id: string | null) => void;
+
+  win: boolean;
+  errors: string[];
+  score: number | null;
+
+  setStatus: (s: { win: boolean; errors: string[]; score: number | null }) => void;
 };
 
 export const useArcadeStore = create<ArcadeState>((set) => ({
@@ -30,4 +36,10 @@ export const useArcadeStore = create<ArcadeState>((set) => ({
 
   setSelectedNodeId: (id) => set({ selectedNodeId: id }),
   setHoveredNodeId: (id) => set({ hoveredNodeId: id }),
+
+  win: false,
+  errors: [],
+  score: null,
+
+  setStatus: (s) => set({ win: s.win, errors: s.errors, score: s.score }),
 }));

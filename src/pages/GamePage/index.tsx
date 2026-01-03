@@ -16,6 +16,9 @@ import "katex/dist/katex.min.css";
 import { getLevelList, loadLevel } from "@/engine/storage/levelLoader";
 import type { BaseLevel } from "@/engine/validation/levelSchemas";
 import { getBestScore, isLevelComplete, markLevelComplete } from "@/engine/storage/progress";
+import { initColoring, onActionColoring, validateColoring } from "@/games/coloring/module";
+import { colorToHex } from "@/games/coloring/colors";
+
 
 function GameControls() {
   const { dispatch } = useEngine();
@@ -45,92 +48,97 @@ function BoundStage() {
   );
 }
 
-function GraphScene() {
+function ColoringScene() {
   const { pixi, level } = useEngine();
+  const setStatus = useArcadeStore((s) => s.setStatus);
+
+  const [state, setState] = useState(() =>
+    level.data ? initColoring(level.data) : { colors: {} }
+  );
   const setHoveredNodeId = useArcadeStore((s) => s.setHoveredNodeId);
   const setSelectedNodeId = useArcadeStore((s) => s.setSelectedNodeId);
+
+
+  // Re-init when level changes
+  useEffect(() => {
+    if (!level.data) return;
+    setState(initColoring(level.data));
+    setStatus({ win: false, errors: [], score: null });
+  }, [level.data, setStatus]);
+
   useEffect(() => {
     const world = pixi.world;
     const ui = pixi.ui;
     if (!world || !ui) return;
+    if (!level.data) return;
 
-    const payload: any = level.data?.payload;
+    const payload: any = level.data.payload;
     if (!payload?.nodes || !payload?.edges) return;
 
-    // Clear layers (prevents stacking)
     world.removeChildren();
     ui.removeChildren();
 
     const g0 = buildGraphFromList({ nodes: payload.nodes, edges: payload.edges });
-    const laidOut = runForceLayout(g0, { width: 900, height: 520 }); // OK for now
+    const laidOut = runForceLayout(g0, { width: 900, height: 520 });
 
     const handles = renderGraph(world, laidOut);
 
-    // HUD
-    const txt = new PIXI.Text({
-      text: "Hover / select / drag ✅ (Phase 1 Task 5)",
-      style: { fill: 0xe2e8f0, fontSize: 16, fontFamily: "Arial" },
-    });
-    txt.x = 14;
-    txt.y = 10;
-    ui.addChild(txt);
+    const initial = initColoring(level.data);
 
-    // Interaction state (local)
-    let draggingId: NodeId | null = null;
+    // Apply initial fills
+    for (const nodeId of payload.nodes as string[]) {
+      handles.setNodeFill(nodeId, colorToHex(initial.colors[nodeId] ?? null));
+    }
 
+    // initial validate
+    const res0 = validateColoring(initial, level.data);
+    setStatus({ win: res0.win, errors: res0.errors, score: res0.score });
+
+    // Attach node click: cycle color
     for (const [id, node] of handles.nodesById.entries()) {
       node.on("pointerover", () => {
         handles.setHovered(id);
         setHoveredNodeId(id);
       });
+
       node.on("pointerout", () => {
         handles.setHovered(null);
         setHoveredNodeId(null);
       });
 
-      node.on("pointerdown", (e: PIXI.FederatedPointerEvent) => {
-        draggingId = id;
+      node.on("pointerdown", () => {
         handles.setSelected(id);
         setSelectedNodeId(id);
-        (node as any).capturePointer?.(e.pointerId);
-      });
 
-      node.on("pointerup", (e: PIXI.FederatedPointerEvent) => {
-        draggingId = null;
-        (node as any).releasePointer?.(e.pointerId);
-      });
+        setState((prev) => {
+          const next = onActionColoring(prev, { type: "CYCLE_NODE_COLOR", nodeId: id });
 
-      node.on("pointerupoutside", (e: PIXI.FederatedPointerEvent) => {
-        draggingId = null;
-        (node as any).releasePointer?.(e.pointerId);
-      });
+          handles.setNodeFill(id, colorToHex(next.colors[id] ?? null));
 
-      node.on("pointermove", (e: PIXI.FederatedPointerEvent) => {
-        if (!draggingId || draggingId !== id) return;
+          const res = validateColoring(next, level.data!);
+          setStatus({ win: res.win, errors: res.errors, score: res.score });
 
-        const p = e.getLocalPosition(world);
-        laidOut.nodes[id].x = p.x;
-        laidOut.nodes[id].y = p.y;
-        node.x = p.x;
-        node.y = p.y;
-
-        handles.redrawEdges();
+          return next;
+        });
       });
     }
 
-    // Cleanup listeners & graphics on re-render
+
+    // initial validate
+    setStatus({ win: res0.win, errors: res0.errors, score: res0.score });
+
     return () => {
+      setHoveredNodeId(null);
+      setSelectedNodeId(null);
       handles.destroy();
       ui.removeChildren();
       world.removeChildren();
-      setHoveredNodeId(null);
-      setSelectedNodeId(null);
-
     };
-  }, [pixi.world, pixi.ui, level.data]);
+  }, [pixi.world, pixi.ui, level.data, setStatus]);
 
   return null;
 }
+
 
 
 
@@ -149,6 +157,11 @@ export default function GamePage() {
   const setExplainMode = useArcadeStore((s) => s.setExplainMode);
   const selectedNodeId = useArcadeStore((s) => s.selectedNodeId);
   const hoveredNodeId = useArcadeStore((s) => s.hoveredNodeId);
+
+  const win = useArcadeStore((s) => s.win);
+  const errors = useArcadeStore((s) => s.errors);
+  const score = useArcadeStore((s) => s.score);
+
 
 
   useEffect(() => {
@@ -227,12 +240,36 @@ export default function GamePage() {
                 Hovered node: <span className="text-slate-200">{hoveredNodeId ?? "—"}</span>
               </div>
             </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 text-sm space-y-2">
+              <div className="text-slate-300">
+                Score: <span className="text-slate-200">{score ?? "—"}</span>
+              </div>
+
+              {win ? (
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2 text-emerald-200">
+                  ✅ You win! Proper coloring achieved.
+                </div>
+              ) : errors.length > 0 ? (
+                <div className="space-y-1">
+                  <div className="text-red-300 font-medium">Conflicts:</div>
+                  <ul className="list-disc pl-5 text-red-200">
+                    {errors.slice(0, 4).map((e, i) => (
+                      <li key={i}>{e}</li>
+                    ))}
+                  </ul>
+                  {errors.length > 4 ? <div className="text-red-300">…and more</div> : null}
+                </div>
+              ) : (
+                <div className="text-slate-400">No conflicts yet — keep coloring.</div>
+              )}
+            </div>
+
 
           </div>
         }
       >
         <BoundStage />
-        <GraphScene />
+        <ColoringScene />
 
 
       </GameShell>

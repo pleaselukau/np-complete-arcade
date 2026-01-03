@@ -8,6 +8,7 @@ export type GraphRenderHandles = {
   setSelected: (id: NodeId | null) => void;
   nodesById: Map<NodeId, PIXI.Container>;
   destroy: () => void;
+  setNodeFill: (id: NodeId, hex: number) => void;
 };
 
 export function renderGraph(world: PIXI.Container, graph: Graph): GraphRenderHandles {
@@ -38,7 +39,8 @@ export function renderGraph(world: PIXI.Container, graph: Graph): GraphRenderHan
     circle.circle(0, 0, 18);
 
     // fill
-    circle.fill(0x0f172a);
+    const fill = (node as any).__fill ?? 0x0f172a;
+    circle.fill(fill);
 
     // stroke color based on state
     const strokeColor = isSelected ? 0x22c55e : isHovered ? 0x60a5fa : 0x94a3b8;
@@ -110,12 +112,19 @@ export function renderGraph(world: PIXI.Container, graph: Graph): GraphRenderHan
   };
 
   world.addChild(container);
+  const setNodeFill = (id: NodeId, hex: number) => {
+    const node = nodesById.get(id);
+    if (!node) return;
+    (node as any).__fill = hex;
+    drawNodeStyle(node, id);
+  };
 
   return {
     container,
     redrawEdges,
     setHovered,
     setSelected,
+    setNodeFill,
     nodesById,
     destroy: () => {
       try {
