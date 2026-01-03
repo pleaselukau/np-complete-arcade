@@ -1,8 +1,12 @@
 import * as PIXI from "pixi.js";
-import type { Graph } from "@/engine/graph/types";
+import type { Graph, NodeId } from "@/engine/graph/types";
 
 export type GraphRenderHandles = {
   container: PIXI.Container;
+  redrawEdges: () => void;
+  setHovered: (id: NodeId | null) => void;
+  setSelected: (id: NodeId | null) => void;
+  nodesById: Map<NodeId, PIXI.Container>;
   destroy: () => void;
 };
 
@@ -14,37 +18,66 @@ export function renderGraph(world: PIXI.Container, graph: Graph): GraphRenderHan
   edgesGfx.name = "edges";
   container.addChild(edgesGfx);
 
-  // Draw edges
-	edgesGfx.clear();
-	edgesGfx.beginPath();
-
-	for (const e of Object.values(graph.edges)) {
-		const u = graph.nodes[e.u];
-		const v = graph.nodes[e.v];
-		if (!u || !v) continue;
-
-		edgesGfx.moveTo(u.x, u.y);
-		edgesGfx.lineTo(v.x, v.y);
-	}
-
-	edgesGfx.stroke({ width: 2, color: 0x334155 });
-
-  // Draw nodes
   const nodeLayer = new PIXI.Container();
   nodeLayer.name = "nodes";
   container.addChild(nodeLayer);
 
+  const nodesById = new Map<NodeId, PIXI.Container>();
+
+  let hovered: NodeId | null = null;
+  let selected: NodeId | null = null;
+
+  const drawNodeStyle = (node: PIXI.Container, id: NodeId) => {
+    const circle = node.getChildByName("circle") as PIXI.Graphics | null;
+    if (!circle) return;
+
+    const isHovered = hovered === id;
+    const isSelected = selected === id;
+
+    circle.clear();
+    circle.circle(0, 0, 18);
+
+    // fill
+    circle.fill(0x0f172a);
+
+    // stroke color based on state
+    const strokeColor = isSelected ? 0x22c55e : isHovered ? 0x60a5fa : 0x94a3b8;
+    const strokeWidth = isSelected ? 3 : 2;
+
+    circle.stroke({ width: strokeWidth, color: strokeColor });
+  };
+
+  const redrawEdges = () => {
+    edgesGfx.clear();
+    edgesGfx.beginPath();
+
+    for (const e of Object.values(graph.edges)) {
+      const u = graph.nodes[e.u];
+      const v = graph.nodes[e.v];
+      if (!u || !v) continue;
+
+      edgesGfx.moveTo(u.x, u.y);
+      edgesGfx.lineTo(v.x, v.y);
+    }
+
+    edgesGfx.stroke({ width: 2, color: 0x334155, alpha: 1 });
+  };
+
+  // Initial edges
+  redrawEdges();
+
+  // Create nodes
   for (const n of Object.values(graph.nodes)) {
     const node = new PIXI.Container();
     node.x = n.x;
     node.y = n.y;
-    node.eventMode = "static"; // for future click/hover
+
+    node.eventMode = "static";
     node.cursor = "pointer";
+    (node as any).__nodeId = n.id;
 
     const circle = new PIXI.Graphics();
-    circle.circle(0, 0, 18);
-    circle.fill(0x0f172a);
-    circle.stroke({ width: 2, color: 0x94a3b8 });
+    circle.name = "circle";
     node.addChild(circle);
 
     const label = new PIXI.Text({
@@ -55,12 +88,35 @@ export function renderGraph(world: PIXI.Container, graph: Graph): GraphRenderHan
     node.addChild(label);
 
     nodeLayer.addChild(node);
+    nodesById.set(n.id, node);
+
+    drawNodeStyle(node, n.id);
   }
+
+  const setHovered = (id: NodeId | null) => {
+    const prev = hovered;
+    hovered = id;
+
+    if (prev && nodesById.has(prev)) drawNodeStyle(nodesById.get(prev)!, prev);
+    if (id && nodesById.has(id)) drawNodeStyle(nodesById.get(id)!, id);
+  };
+
+  const setSelected = (id: NodeId | null) => {
+    const prev = selected;
+    selected = id;
+
+    if (prev && nodesById.has(prev)) drawNodeStyle(nodesById.get(prev)!, prev);
+    if (id && nodesById.has(id)) drawNodeStyle(nodesById.get(id)!, id);
+  };
 
   world.addChild(container);
 
   return {
     container,
+    redrawEdges,
+    setHovered,
+    setSelected,
+    nodesById,
     destroy: () => {
       try {
         container.destroy({ children: true });

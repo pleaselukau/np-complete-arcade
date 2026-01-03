@@ -1,4 +1,5 @@
 import * as PIXI from "pixi.js";
+import type { NodeId } from "@/engine/graph/types";
 import { buildGraphFromList } from "@/engine/graph/utils";
 import { runForceLayout } from "@/engine/graph/layout";
 import { renderGraph } from "@/engine/graph/render";
@@ -33,44 +34,94 @@ function GameControls() {
   );
 }
 function BoundStage() {
-  const { bindPixi, level } = useEngine();
+  const { bindPixi } = useEngine();
 
   return (
     <PixiStage
-      onAppReady={({ app, world, ui, size }) => {
+      onAppReady={({ app, world, ui }) => {
         bindPixi({ app, world, ui });
-
-        // Clear world to avoid stacking renders
-        world.removeChildren();
-
-        // HUD text
-        const txt = new PIXI.Text({
-          text: "Graph renderer ✅ (Phase 1 Task 4)",
-          style: { fill: 0xe2e8f0, fontSize: 16, fontFamily: "Arial" },
-        });
-        txt.x = 14;
-        txt.y = 10;
-        ui.addChild(txt);
-
-        // Only render if this level has the graph-like payload
-        const payload: any = level?.data?.payload;
-        if (!payload?.nodes || !payload?.edges) return;
-
-        const g0 = buildGraphFromList({
-          nodes: payload.nodes,
-          edges: payload.edges,
-        });
-
-        const laidOut = runForceLayout(g0, {
-          width: size.width,
-          height: size.height,
-        });
-
-        renderGraph(world, laidOut);
       }}
     />
   );
 }
+
+function GraphScene() {
+  const { pixi, level } = useEngine();
+
+  useEffect(() => {
+    const world = pixi.world;
+    const ui = pixi.ui;
+    if (!world || !ui) return;
+
+    const payload: any = level.data?.payload;
+    if (!payload?.nodes || !payload?.edges) return;
+
+    // Clear layers (prevents stacking)
+    world.removeChildren();
+    ui.removeChildren();
+
+    const g0 = buildGraphFromList({ nodes: payload.nodes, edges: payload.edges });
+    const laidOut = runForceLayout(g0, { width: 900, height: 520 }); // OK for now
+
+    const handles = renderGraph(world, laidOut);
+
+    // HUD
+    const txt = new PIXI.Text({
+      text: "Hover / select / drag ✅ (Phase 1 Task 5)",
+      style: { fill: 0xe2e8f0, fontSize: 16, fontFamily: "Arial" },
+    });
+    txt.x = 14;
+    txt.y = 10;
+    ui.addChild(txt);
+
+    // Interaction state (local)
+    let draggingId: NodeId | null = null;
+
+    for (const [id, node] of handles.nodesById.entries()) {
+      node.on("pointerover", () => handles.setHovered(id));
+      node.on("pointerout", () => handles.setHovered(null));
+
+      node.on("pointerdown", (e: PIXI.FederatedPointerEvent) => {
+        draggingId = id;
+        handles.setSelected(id);
+        (node as any).capturePointer?.(e.pointerId);
+      });
+
+      node.on("pointerup", (e: PIXI.FederatedPointerEvent) => {
+        draggingId = null;
+        (node as any).releasePointer?.(e.pointerId);
+      });
+
+      node.on("pointerupoutside", (e: PIXI.FederatedPointerEvent) => {
+        draggingId = null;
+        (node as any).releasePointer?.(e.pointerId);
+      });
+
+      node.on("pointermove", (e: PIXI.FederatedPointerEvent) => {
+        if (!draggingId || draggingId !== id) return;
+
+        const p = e.getLocalPosition(world);
+        laidOut.nodes[id].x = p.x;
+        laidOut.nodes[id].y = p.y;
+        node.x = p.x;
+        node.y = p.y;
+
+        handles.redrawEdges();
+      });
+    }
+
+    // Cleanup listeners & graphics on re-render
+    return () => {
+      handles.destroy();
+      ui.removeChildren();
+      world.removeChildren();
+    };
+  }, [pixi.world, pixi.ui, level.data]);
+
+  return null;
+}
+
+
 
 
 
@@ -157,6 +208,7 @@ export default function GamePage() {
         }
       >
         <BoundStage />
+        <GraphScene />
 
 
       </GameShell>
