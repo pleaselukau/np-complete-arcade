@@ -5,7 +5,7 @@ import { runForceLayout } from "@/engine/graph/layout";
 import { renderGraph } from "@/engine/graph/render";
 import EngineProvider from "@/engine/core/EngineProvider";
 import { useEngine } from "@/engine/core/EngineProvider";
-import { attachPointerDebug } from "@/engine/input/pointer";
+import { useArcadeStore } from "@/engine/state/arcadeStore";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import GameShell from "@/components/GameShell";
@@ -47,7 +47,8 @@ function BoundStage() {
 
 function GraphScene() {
   const { pixi, level } = useEngine();
-
+  const setHoveredNodeId = useArcadeStore((s) => s.setHoveredNodeId);
+  const setSelectedNodeId = useArcadeStore((s) => s.setSelectedNodeId);
   useEffect(() => {
     const world = pixi.world;
     const ui = pixi.ui;
@@ -78,12 +79,19 @@ function GraphScene() {
     let draggingId: NodeId | null = null;
 
     for (const [id, node] of handles.nodesById.entries()) {
-      node.on("pointerover", () => handles.setHovered(id));
-      node.on("pointerout", () => handles.setHovered(null));
+      node.on("pointerover", () => {
+        handles.setHovered(id);
+        setHoveredNodeId(id);
+      });
+      node.on("pointerout", () => {
+        handles.setHovered(null);
+        setHoveredNodeId(null);
+      });
 
       node.on("pointerdown", (e: PIXI.FederatedPointerEvent) => {
         draggingId = id;
         handles.setSelected(id);
+        setSelectedNodeId(id);
         (node as any).capturePointer?.(e.pointerId);
       });
 
@@ -115,6 +123,9 @@ function GraphScene() {
       handles.destroy();
       ui.removeChildren();
       world.removeChildren();
+      setHoveredNodeId(null);
+      setSelectedNodeId(null);
+
     };
   }, [pixi.world, pixi.ui, level.data]);
 
@@ -134,7 +145,11 @@ export default function GamePage() {
 
   const [level, setLevel] = useState<BaseLevel | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [explainMode, setExplainMode] = useState(true);
+  const explainMode = useArcadeStore((s) => s.explainMode);
+  const setExplainMode = useArcadeStore((s) => s.setExplainMode);
+  const selectedNodeId = useArcadeStore((s) => s.selectedNodeId);
+  const hoveredNodeId = useArcadeStore((s) => s.hoveredNodeId);
+
 
   useEffect(() => {
     setLevelNum(levels[0] ?? 1);
@@ -204,6 +219,15 @@ export default function GamePage() {
                 <div className="text-slate-400">Loading…</div>
               )}
             </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 text-sm space-y-1">
+              <div className="text-slate-300">
+                Selected node: <span className="text-slate-200">{selectedNodeId ?? "—"}</span>
+              </div>
+              <div className="text-slate-300">
+                Hovered node: <span className="text-slate-200">{hoveredNodeId ?? "—"}</span>
+              </div>
+            </div>
+
           </div>
         }
       >
